@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<title>commander</title>
+		<script src="/static/js/jquery-1.10.2.min.js"></script>
+		<style>
+			#photo{
+				float:right;
+				width:512px;
+				height:256px;
+				border:1px solid black;
+			}
+			#map{
+			       background:white;
+				height:100%;
+				margin:0 auto;			
+			}
+			#map-container{
+				position:absolute;
+				top:0;
+				bottom:0;
+				left:0;
+				right:0;
+				background:#B8B8B8;
+				z-index:-1;
+				padding-left:232px;
+				padding-right:340px;
+				text-align:center;
+			}
+
+			#battery{
+				height:1.3em;
+				width:200px;
+				background-color:#777;
+				margin:0 auto;
+				position:relative;
+			}
+			#battery-level{
+				height:100%;
+				width:0%;
+				background-color:green;
+			}
+			.disconnected #battery-level{
+			background-color: grey;
+			}
+			#battery-percent{
+				position:absolute;
+				left:0;
+				right:0;
+				bottom:0;
+				top:0;
+				color:white;
+				font-weight:bold;
+			}
+			fieldset{
+				position:relative;
+			}
+			html,body{
+				overflow:hidden;
+				margin:0;
+			}
+			form{
+				background:#D8D8D8;
+				top: 0;
+				bottom:0;
+				width: 232px;
+				left:0;
+				position:absolute;
+				margin:0;
+				text-align:center;
+			}
+			
+			body.noscroll{
+    				position:fixed;
+    				overflow:hidden;
+                     }
+				#photos{
+				position:absolute;
+				right:0;
+				top:0;
+				bottom:0;
+				background:white;
+				float:right;
+				width:340px;
+				overflow-y:auto;
+				background:#D8D8D8;
+			}
+			#photos li{
+				list-style-type:none;
+			}
+			#search{
+			       background:#33CC33;
+				width: 5em;
+				height:2em;
+				font-size:40px;
+				color: white;
+			}
+			#search:hover{
+				background-color: #3F3;
+			}
+			#templates{
+				display:none;
+			}
+			
+		</style>
+	</head>
+	<body class="disconnected">
+		<form method="post">
+			<img id="arrows" usemap="#move" src="static/css/MoveArrows.png" alt="Move Arrows">
+			<map name="move">
+				<area shape="poly" coords="116,5,148,53,131,53,131,121,102,121,101,53,85,53" href="#" title="Move forwards" name="forward"> 
+				<area shape="poly" coords="102,220,130,220,130,288,148,288,117,335,85,288,101,288" href="#" title="Move backwards" name="backward"> 
+				<area shape="circle" coords="115,170,40" href="#" alt="Stop" name="stop"> 
+				<area shape="poly" coords="183,84,194,97,202,112,209,128,214,146,216,162,216,180,214,197,209,213,201,231,224,245,166,271,154,208,179,219,188,203,194,184,194,166,192,148,184,128,177,113,165,98" href="#" title="Turn right" name="right"> 
+			       <area shape="poly" coords="47,84,36,97,28,112,21,128,16,146,14,162,14,180,16,197,21,213,29,231,6,245,64,271,76,208,51,219,42,203,36,184,36,166,38,148,46,128,53,113,65,98" href="#" title="Turn left" name="left"> 
+			</map>
+			<!--<a id="photo-link" target="_blank"><img id="photo" alt="no image"></a>-->
+			<!--<fieldset>
+				<legend>motor controls</legend>
+				<button type="submit" name="do" value="stop">stop</button>
+				<br>
+				<button type="submit" name="do" value="backward">backward</button>
+				<button type="submit" name="do" value="forward">forward</button>
+				<br>
+				<button type="submit" name="do" value="left">left</button>
+				<button type="submit" name="do" value="right">right</button>
+			</fieldset>
+			<fieldset>
+				<legend>high-level controls</legend>			
+			</fieldset>
+			<fieldset>
+				<legend>sensors</legend>
+				<label for="battery">battery</label>
+				<input id="battery">
+			</fieldset>-->
+			
+			<button type="submit" name="do" value="Search" id="search" title = "Explore the area">Search</button>
+			<input type="image" id="camera" name="go" value="photo" src="static/css/camera.png" width="200" height="150" title="Take a picture">
+			<div id="battery">
+				<div id="battery-level"></div>
+				<div id="battery-percent">
+					Loading
+				</div>
+			</div>
+		</form>
+		<div id="map-container">
+			<canvas id="map" width="800" height="800"">
+				cannot show map
+			</canvas>
+		</div>
+		<div id="photos">
+			<ul id="photo-list"></ul>
+
+		</div><!--"-->
+		<div id="templates">
+			<li class="photo-item">
+				<img width="160" height="128">
+		
+				
+			</li>
+		</div>
+		<script>
+			$(function(){
+				function fillCircle(gfx,pos,r,c){
+					var oldc = gfx.fillStyle;
+					gfx.fillStyle=c;
+					gfx.arc(pos[0],pos[1],r,0,2*Math.PI);
+					gfx.fill();
+					gfx.fillStyle = oldc;
+					gfx.beginPath();
+				}
+				function fillTile(gfx,pos,r,c){
+					var oldc=gfx.fillStyle;
+					gfx.fillStyle=c;
+					gfx.rect(pos[0],pos[1],r,r);
+					gfx.fill();
+					gfx.fillStyle = oldc;
+					gfx.beginPath();
+				
+				}
+				function updateMap(pos,pTrail,trail,obstacles){
+					var c=document.getElementById("map");
+					var gr=c.getContext("2d");
+					gr.save()
+					gr.translate(c.width/2,c.height/2);
+					gr.scale(100,100);//100 px/m
+					
+					var gridres=100;
+					
+					//console.log(1.23);
+					var cp = "#0000FF";
+					var pp = "#00AA00";
+					var fp = "#D07000";
+					var op = "#000000"; //don't change this colour
+					
+					//pos=[x,y] in meters: position[0]=x, position[1]=y
+					//pTrail=[[left_arclength,right_arclength],...]
+					//trail=[[left_arclength,right_arclength],...]
+					//0<=obstacles[i][j]<=1
+					
+					//pos=[400,400]
+					//pTrail=[[429,429],[444,429],[460,481]]
+					//trail=[[380,380]]
+					
+					//obstacles=[[1,1,1,1],[0,0.5,0,1],[0.7,0.6,0.5,0.4],[0.1,0.2,0.4,0.8]]
+					//obstacles = [];
+					//var gridSize=800/gridres|0;
+					//for (var i=0;i< gridSize; i++){
+					//	obstacles[i]=[];
+					//	for (var j=0;j<gridSize; j++){
+					//		obstacles[i][j]=Math.random();
+					//	
+					//	}
+					//
+					//}
+					//
+					//for (var i=0;i< obstacles.length ;i++){ 
+					//	for (var j = 0; j < obstacles[i].length;j++){
+					//		var hex=(255-(256*obstacles[i][j]|0)).toString(16);
+					//		while(hex.length<2)
+					//			hex="0"+hex;
+					//		fillTile(gr, [j*gridres, i*gridres], gridres, "#"+hex+hex+hex);
+					//	}
+					//}
+					
+					for (var i=0;i<pTrail.length;i++){ 
+						fillCircle(gr,pTrail[i],.03,pp);
+					}		
+					
+					//for (var i=0;i<trail.length;i++){ 
+					//	fillCircle(gr,trail[i],3,fp);
+					//}	
+					
+					fillCircle(gr,pos,.14,cp);
+					
+					
+					gr.restore();
+				}
+				(function update(){
+					$.post("/battery")
+						.done(function(battery){
+							$("#battery-percent").text("Battery Life: "+(battery*100).toFixed(1)+"%");
+							$("#battery-level").css({width:battery*100+"%"});
+						}).always(function(){
+							setTimeout(update,10000);
+						});
+				})();
+				$("form [name=do],map[name=move] area[name]").click(function(e){
+					e.preventDefault();
+					$.post("/"+$(this).val());
+				});
+				$("form [name=go]").click(function(e){
+					e.preventDefault();
+					$.post("/"+$(this).val())
+						.done(function(data){
+							$("#photo").attr("alt",data.path).attr("src",data.path);
+							$("#photo-link").attr("href",data.path);
+						});
+				});
+				var photos=[],state={},trail=[];
+				$(document)
+					.on("connected",function(e,connected){
+						$("body").removeClass("connected disconnected").addClass((connected?"":"dis")+"connected");
+						$("input").prop("disabled",!connected);
+						if(!connected)
+							$("battery-level").text("not connected");
+					}).trigger("connected",false).on("photo",function(e,photo){
+						$("#templates>.photo-item").clone().prependTo("#photo-list").find("img").attr("src",photo.path);
+					}).on("trail",function(e,data){
+						trail.push(data);
+					}).on("where trail",function(){
+						updateMap(state.where,trail.reverse(),null,null);
+					});
+				var params="";
+				(function subscribe(){
+					$.ajax({
+						url:"/subscribe"+params,
+						type:"POST",
+						timeout:30000,
+						dataType:"json",
+					}).fail(function(e){
+						if(e.status!=0){
+							setTimeout(subscribe,1000);
+							return;
+						}
+						$(document).trigger("connected",false);
+						(function reconnect(){
+							$.ajax({
+								url:"/subscribe",
+								type:"POST",
+								timeout:10000,//should be immediate
+								dataType:"json",
+							}).success(function(){
+								$(document).trigger("connected",true);
+								subscribe();
+							}).fail(function(){
+								setTimeout(reconnect,1000);
+							});
+						})();
+					}).done(function(data){
+						if(!params){//first one; we're done loading the main ui
+							$.post("/history?key=photo&t="+data.t)
+								.done(function(photos){
+									$(photos.reverse()).map(function(i,e){
+										var $elt=$("#templates>.photo-item").clone();
+										$elt.find("img").attr("src",e[1].path);
+										return $elt[0];
+									}).appendTo("#photo-list");
+								});
+							$.post("/history?key=trail&t="+data.t)
+								.done(function(prefix){
+									trail=prefix.concat(trail);
+								});
+						}
+						params="?t="+data.t;
+						for(var a=data.deltas,i=0;i<a.length;++i){
+							console.log("%o: %o at %o",a[i][0],a[i][1],a[i][2]);
+							state[a[i][0]]=a[i][1];
+							var e=$.Event(a[i][0]);
+							e.timeStamp=a[i][2]*1000;
+							$(document).trigger(e,[a[i][1]]);
+						}
+						subscribe();
+					});
+				})();
+			});
+		</script>
+			
+	</body>
+</html>
